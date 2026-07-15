@@ -4,9 +4,8 @@ import React, { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { useSharedCardSelection } from "@/lib/useSharedCardSelection";
+import { TOTAL_CARDS } from "@/lib/bingoCards";
 import "@/app/Game/styles.css";
-
-const TOTAL_CARDS = 200;
 
 export default function FloorGuyPage() {
   const { data: session, status } = useSession();
@@ -104,7 +103,8 @@ export default function FloorGuyPage() {
             {locked ? "Locked (game started)" : "Selecting"}
           </span>
           <span className="text-slate-300">
-            Players: <strong className="text-white">{betNumbers.length}</strong>
+            Cards 1–{TOTAL_CARDS} · Players:{" "}
+            <strong className="text-white">{betNumbers.length}</strong>
             {syncing ? " · syncing…" : ""}
           </span>
           <button
@@ -125,14 +125,17 @@ export default function FloorGuyPage() {
         </div>
       </header>
 
-      <div className="cardSelectionArea !min-h-0 !grid-rows-none !h-auto bg-slate-800 rounded-xl p-3">
-        <div className="cardSelector !col-span-full !row-auto">
-          <div className="cardSelectSec !w-full !h-auto !max-h-none overflow-visible">
+      <div className="cardSelectionArea !min-h-0 !grid-rows-none !h-[calc(100vh-140px)] !block bg-slate-800 rounded-xl p-3">
+        <div className="cardSelector !col-span-full !row-auto !h-full !flex !flex-col">
+          <div className="cardSelectSec !w-full !h-full !max-h-none !overflow-hidden !flex !flex-col">
             <div
-              className="cardGrid !h-auto"
+              className="cardGrid !h-auto !overflow-y-auto"
               style={{
                 gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))",
                 gap: "4px",
+                flex: 1,
+                minHeight: 0,
+                maxHeight: "calc(100vh - 180px)",
               }}
             >
               {Array.from({ length: TOTAL_CARDS }, (_, i) => i + 1).map(

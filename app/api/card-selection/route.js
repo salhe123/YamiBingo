@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/libs/prismadb";
+import { TOTAL_CARDS } from "@/lib/bingoCards";
 
 async function assertShopAccess(session, shopId) {
   if (!session?.user) {
@@ -112,7 +113,7 @@ export async function PATCH(request) {
         );
       }
       const card = Number(body.cardNumber);
-      if (!Number.isInteger(card) || card < 1 || card > 200) {
+      if (!Number.isInteger(card) || card < 1 || card > TOTAL_CARDS) {
         return NextResponse.json({ message: "Invalid cardNumber" }, { status: 400 });
       }
       if (selectedCards.includes(card)) {
@@ -125,7 +126,7 @@ export async function PATCH(request) {
         return NextResponse.json({ message: "Selection is locked" }, { status: 409 });
       }
       const cards = Array.isArray(body.selectedCards)
-        ? body.selectedCards.map(Number).filter((n) => n >= 1 && n <= 200)
+        ? body.selectedCards.map(Number).filter((n) => n >= 1 && n <= TOTAL_CARDS)
         : [];
       selectedCards = [...new Set(cards)];
     } else if (action === "clear") {
