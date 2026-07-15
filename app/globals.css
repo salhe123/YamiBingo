@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.loader {
+  border: 4px solid #f3f3f3; /* Light grey border */
+  border-top: 4px solid orange;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.thinking-emoji::after {
+  content: " 🤔"; /* This ensures the emoji is part of the content we can style */
+  font-size: 1.5em; /* Adjust this value to make the emoji larger (1.5x the text size, e.g., 1.5 * 20px = 30px) */
+  vertical-align: middle; /* Keeps the emoji aligned with the text */
+}
+
+.emoji-bounce {
+  animation: bounce 1.5s infinite;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Ensure CashierGames table is responsive */
+.overflow-x-auto {
+  width: 100%;
+}

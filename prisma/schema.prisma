@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(auto()) @db.ObjectId @map("_id")
+  firstName     String
+  lastName      String
+  email         String       @unique
+  password      String
+  role          Role
+  isBlocked     Boolean      @default(false)
+  phoneNumber   String
+  createdAt     DateTime     @default(now())
+  createdBy     String?      @db.ObjectId
+  shops         Shop[]       @relation("ShopOwner")
+  cashiers      Cashier[]    @relation("CashierUser")
+  agentCashiers Cashier[]    @relation("CashierAgent")
+  floorGuys     FloorGuy[]   @relation("FloorGuyUser")
+  agentFloorGuys FloorGuy[]  @relation("FloorGuyAgent")
+  agentWallet   AgentWallet?
+  agentId       String?      @db.ObjectId
+  agent         User?        @relation("AgentUsers", fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  managedUsers  User[]       @relation("AgentUsers")
+}
+
+enum Role {
+  SuperAdmin
+  Admin
+  Cashier
+  Supervisor
+  Agent
+  FloorGuy
+}
+
+model Shop {
+  id                 String          @id @default(auto()) @db.ObjectId @map("_id")
+  shopName           String
+  location           String
+  ownerId            String?         @db.ObjectId
+  owner              User?           @relation("ShopOwner", fields: [ownerId], references: [id])
+  cashiers           Cashier[]
+  floorGuys          FloorGuy[]
+  wallet             ShopWallet?
+  cardSelection      CardSelection?
+  createdAt          DateTime        @default(now())
+  agentId            String?       
+  games              Game[]
+  shopCommissionRate Float?
+}
+
+
+model ShopWallet {
+  id           String        @id @default(auto()) @db.ObjectId @map("_id")
+  shopId       String        @unique @db.ObjectId
+  shop         Shop          @relation(fields: [shopId], references: [id])
+  balance      Float
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Cashier {
+  id        String   @id @default(auto()) @db.ObjectId @map("_id")
+  shopId    String?  @db.ObjectId
+  shop      Shop?    @relation(fields: [shopId], references: [id])
+  userId    String?   @db.ObjectId
+  user      User?     @relation("CashierUser", fields: [userId], references: [id])
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+  agentId   String?  @db.ObjectId
+  agent     User?    @relation("CashierAgent", fields: [agentId], references: [id])
+  games     Game[]
+}
+
+model FloorGuy {
+  id        String   @id @default(auto()) @db.ObjectId @map("_id")
+  shopId    String?  @db.ObjectId
+  shop      Shop?    @relation(fields: [shopId], references: [id])
+  userId    String?  @db.ObjectId
+  user      User?    @relation("FloorGuyUser", fields: [userId], references: [id])
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+  agentId   String?  @db.ObjectId
+  agent     User?    @relation("FloorGuyAgent", fields: [agentId], references: [id])
+}
+
+// Shared bingo card selection between Cashier and FloorGuy (shop-scoped)
+model CardSelection {
+  id            String   @id @default(auto()) @db.ObjectId @map("_id")
+  shopId        String   @unique @db.ObjectId
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  selectedCards Int[]
+  locked        Boolean  @default(false)
+  updatedBy     String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+
+model Game {
+  id               String     @id @default(auto()) @db.ObjectId @map("_id")
+  shopId           String     @db.ObjectId
+  shop             Shop       @relation(fields: [shopId], references: [id])
+  cashierId        String     @db.ObjectId
+  cashier          Cashier    @relation(fields: [cashierId], references: [id])
+  status           GameStatus
+  betAmount        Float
+  numberOfPlayers  Int
+  winningAmount    Float
+  winnerCard       String?
+  numbersCalled    Int?
+  shopCommission   Float?
+  systemCommission Float?
+  createdAt        DateTime   @default(now())
+}
+
+enum GameStatus {
+  active
+  completed
+  cancelled
+}
+
+model Transaction {
+  id          String      @id @default(auto()) @db.ObjectId @map("_id")
+  walletId    String      @db.ObjectId
+  wallet      ShopWallet  @relation(fields: [walletId], references: [id])
+  amount      Float
+  type        TransactionType
+  description String?
+  createdAt   DateTime    @default(now())
+}
+
+enum TransactionType {
+  TopUp
+  Deduction
+}
+
+model AgentWallet {
+  id           String          @id @default(auto()) @db.ObjectId @map("_id")
+  agentId      String          @unique @db.ObjectId
+  agent        User            @relation(fields: [agentId], references: [id])
+  balance      Float
+  updatedAt    DateTime        @updatedAt
+  transactions AgentTransaction[]
+}
+
+model AgentTransaction {
+  id          String        @id @default(auto()) @db.ObjectId @map("_id")
+  walletId    String        @db.ObjectId
+  wallet      AgentWallet   @relation(fields: [walletId], references: [id])
+  amount      Float
+  type        TransactionType
+  description String?
+  createdAt   DateTime      @default(now())
+}
