@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import prisma from "@/libs/prismadb";
 import { TOTAL_CARDS } from "@/lib/bingoCards";
+import {
+  getOrCreateCardSelection,
+  updateCardSelection,
+} from "@/libs/cardSelectionDb";
 
 async function assertShopAccess(session, shopId) {
   if (!session?.user) {
@@ -24,16 +27,6 @@ async function assertShopAccess(session, shopId) {
   return { error: NextResponse.json({ message: "Forbidden" }, { status: 403 }) };
 }
 
-async function getOrCreateSelection(shopId) {
-  let selection = await prisma.cardSelection.findUnique({ where: { shopId } });
-  if (!selection) {
-    selection = await prisma.cardSelection.create({
-      data: { shopId, selectedCards: [], locked: false },
-    });
-  }
-  return selection;
-}
-
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -47,7 +40,7 @@ export async function GET(request) {
     const access = await assertShopAccess(session, shopId);
     if (access.error) return access.error;
 
-    const selection = await getOrCreateSelection(shopId);
+    const selection = await getOrCreateCardSelection(shopId);
 
     return NextResponse.json({
       selectedCards: selection.selectedCards,
@@ -76,7 +69,7 @@ export async function PATCH(request) {
     const access = await assertShopAccess(session, shopId);
     if (access.error) return access.error;
 
-    const current = await getOrCreateSelection(shopId);
+    const current = await getOrCreateCardSelection(shopId);
 
     // FloorGuy may only toggle/set/clear while unlocked
     if (session.user.role === "FloorGuy") {
@@ -98,15 +91,7 @@ export async function PATCH(request) {
     let locked = current.locked;
 
     if (action === "toggle") {
-      if (current.locked && session.user.role !== "Cashier") {
-        return NextResponse.json(
-          { message: "Selection is locked" },
-          { status: 409 },
-        );
-      }
-      if (current.locked && session.user.role === "Cashier") {
-        // Allow cashier to still change before draw? Once locked mid-game usually no.
-        // Keep locked state; cashier can still toggle if we want — but typically lock means freeze.
+      if (current.locked) {
         return NextResponse.json(
           { message: "Selection is locked — unlock by restarting selection" },
           { status: 409 },
@@ -144,13 +129,10 @@ export async function PATCH(request) {
       return NextResponse.json({ message: "Invalid action" }, { status: 400 });
     }
 
-    const updated = await prisma.cardSelection.update({
-      where: { shopId },
-      data: {
-        selectedCards,
-        locked,
-        updatedBy: userId || null,
-      },
+    const updated = await updateCardSelection(shopId, {
+      selectedCards,
+      locked,
+      updatedBy: userId || null,
     });
 
     return NextResponse.json({
