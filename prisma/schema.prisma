@@ -96,6 +96,7 @@ model CardSelection {
   shop          Shop     @relation(fields: [shopId], references: [id])
   selectedCards Int[]
   locked        Boolean  @default(false)
+  selectionOpen Boolean  @default(false)
   updatedBy     String?
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())

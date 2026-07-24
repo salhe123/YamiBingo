@@ -7,6 +7,7 @@ import { MdOutlineDashboard } from "react-icons/md";
 import { SiAmazongames } from "react-icons/si";
 import { CiDatabase } from "react-icons/ci";
 import { CgProfile } from "react-icons/cg";
+import { FaWalking } from "react-icons/fa";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import axios from "axios";
@@ -22,6 +23,7 @@ const CashierLayout = ({ children }) => {
   const menus = [
     { name: "Home Dashboard", link: "/Cashier", icon: MdOutlineDashboard },
     { name: "Bingo Game", link: "/Game", icon: SiAmazongames },
+    { name: "Floor Guys", link: "/Cashier/FloorGuys", icon: FaWalking },
     { name: "Game Datas", link: "/Cashier/GamesTable", icon: CiDatabase },
     { name: "Profile", link: "/Cashier/Profile", icon: CgProfile },
   ];

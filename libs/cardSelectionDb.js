@@ -36,7 +36,6 @@ async function collection() {
 }
 
 function toShopFilter(shopId) {
-  // Prisma stores shopId as ObjectId in Mongo
   try {
     return { shopId: new ObjectId(shopId) };
   } catch {
@@ -51,6 +50,8 @@ function serialize(doc) {
     shopId: doc.shopId?.toString?.() || doc.shopId,
     selectedCards: Array.isArray(doc.selectedCards) ? doc.selectedCards : [],
     locked: !!doc.locked,
+    // FloorGuy only sees the grid when cashier has opened selection
+    selectionOpen: !!doc.selectionOpen,
     updatedBy: doc.updatedBy ? doc.updatedBy.toString() : null,
     updatedAt: doc.updatedAt || new Date(),
     createdAt: doc.createdAt || new Date(),
@@ -63,7 +64,6 @@ export async function getOrCreateCardSelection(shopId) {
   let doc = await col.findOne(filter);
 
   if (!doc) {
-    // also try string shopId in case import used strings
     doc = await col.findOne({ shopId });
   }
 
@@ -79,6 +79,7 @@ export async function getOrCreateCardSelection(shopId) {
       shopId: shopObjectId,
       selectedCards: [],
       locked: false,
+      selectionOpen: false,
       updatedBy: null,
       updatedAt: now,
       createdAt: now,
@@ -90,7 +91,10 @@ export async function getOrCreateCardSelection(shopId) {
   return serialize(doc);
 }
 
-export async function updateCardSelection(shopId, { selectedCards, locked, updatedBy }) {
+export async function updateCardSelection(
+  shopId,
+  { selectedCards, locked, selectionOpen, updatedBy },
+) {
   const col = await collection();
   const now = new Date();
   let updatedByValue = null;
@@ -102,16 +106,16 @@ export async function updateCardSelection(shopId, { selectedCards, locked, updat
     }
   }
 
-  const update = {
-    $set: {
-      selectedCards,
-      locked,
-      updatedBy: updatedByValue,
-      updatedAt: now,
-    },
+  const $set = {
+    updatedBy: updatedByValue,
+    updatedAt: now,
   };
+  if (selectedCards !== undefined) $set.selectedCards = selectedCards;
+  if (locked !== undefined) $set.locked = locked;
+  if (selectionOpen !== undefined) $set.selectionOpen = selectionOpen;
 
-  // Try ObjectId shopId first, then string
+  const update = { $set };
+
   let result = await col.findOneAndUpdate(toShopFilter(shopId), update, {
     returnDocument: "after",
   });
@@ -122,10 +126,8 @@ export async function updateCardSelection(shopId, { selectedCards, locked, updat
     });
   }
 
-  // Older drivers return { value: doc }
   const doc = result?.value ?? result;
   if (!doc || !doc._id) {
-    // create then update
     await getOrCreateCardSelection(shopId);
     const again = await col.findOneAndUpdate(toShopFilter(shopId), update, {
       returnDocument: "after",

@@ -27,6 +27,16 @@ async function assertShopAccess(session, shopId) {
   return { error: NextResponse.json({ message: "Forbidden" }, { status: 403 }) };
 }
 
+function payload(selection) {
+  return {
+    selectedCards: selection.selectedCards,
+    locked: selection.locked,
+    selectionOpen: selection.selectionOpen,
+    updatedAt: selection.updatedAt,
+    updatedBy: selection.updatedBy,
+  };
+}
+
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,13 +51,7 @@ export async function GET(request) {
     if (access.error) return access.error;
 
     const selection = await getOrCreateCardSelection(shopId);
-
-    return NextResponse.json({
-      selectedCards: selection.selectedCards,
-      locked: selection.locked,
-      updatedAt: selection.updatedAt,
-      updatedBy: selection.updatedBy,
-    });
+    return NextResponse.json(payload(selection));
   } catch (error) {
     console.error("card-selection GET:", error);
     return NextResponse.json({ message: error.message }, { status: 500 });
@@ -59,7 +63,7 @@ export async function PATCH(request) {
     const session = await getServerSession(authOptions);
     const body = await request.json();
     const shopId = body.shopId || session?.user?.shopId;
-    const action = body.action; // toggle | set | clear | lock | unlock
+    const action = body.action;
     const userId = session?.user?.id;
 
     if (!shopId) {
@@ -71,17 +75,21 @@ export async function PATCH(request) {
 
     const current = await getOrCreateCardSelection(shopId);
 
-    // FloorGuy may only toggle/set/clear while unlocked
+    // FloorGuy: only toggle/set/clear while open + unlocked
     if (session.user.role === "FloorGuy") {
-      if (action === "lock" || action === "unlock") {
+      if (["lock", "unlock", "open", "close"].includes(action)) {
         return NextResponse.json(
-          { message: "FloorGuy cannot lock/unlock selection" },
+          { message: "FloorGuy cannot change selection session state" },
           { status: 403 },
         );
       }
-      if (current.locked) {
+      if (current.locked || !current.selectionOpen) {
         return NextResponse.json(
-          { message: "Selection is locked — game already started" },
+          {
+            message: current.locked
+              ? "Selection is locked — game already started"
+              : "Waiting for cashier to open card selection",
+          },
           { status: 409 },
         );
       }
@@ -89,6 +97,7 @@ export async function PATCH(request) {
 
     let selectedCards = [...(current.selectedCards || [])];
     let locked = current.locked;
+    let selectionOpen = current.selectionOpen;
 
     if (action === "toggle") {
       if (current.locked) {
@@ -121,10 +130,20 @@ export async function PATCH(request) {
       selectedCards = [];
       if (session.user.role === "Cashier") locked = false;
     } else if (action === "lock") {
+      // Game started — close floor selection
       locked = true;
+      selectionOpen = false;
     } else if (action === "unlock") {
       locked = false;
+      selectionOpen = true;
       if (body.clear) selectedCards = [];
+    } else if (action === "open") {
+      // Cashier opened Bingo Game selection screen
+      locked = false;
+      selectionOpen = true;
+    } else if (action === "close") {
+      // Cashier left selection / closed tab
+      selectionOpen = false;
     } else {
       return NextResponse.json({ message: "Invalid action" }, { status: 400 });
     }
@@ -132,15 +151,11 @@ export async function PATCH(request) {
     const updated = await updateCardSelection(shopId, {
       selectedCards,
       locked,
+      selectionOpen,
       updatedBy: userId || null,
     });
 
-    return NextResponse.json({
-      selectedCards: updated.selectedCards,
-      locked: updated.locked,
-      updatedAt: updated.updatedAt,
-      updatedBy: updated.updatedBy,
-    });
+    return NextResponse.json(payload(updated));
   } catch (error) {
     console.error("card-selection PATCH:", error);
     return NextResponse.json({ message: error.message }, { status: 500 });

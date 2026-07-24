@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { useSharedCardSelection } from "@/lib/useSharedCardSelection";
 import { TOTAL_CARDS } from "@/lib/bingoCards";
@@ -13,14 +13,15 @@ export default function FloorGuyPage() {
   const [betNumbers, setBetNumbers] = useState([]);
   const [busyCard, setBusyCard] = useState(null);
 
-  const { locked, syncing, toggleCard, clearCards } = useSharedCardSelection({
-    shopId,
-    enabled: status === "authenticated" && !!shopId,
-    pollMs: 400,
-    onRemoteChange: (cards) => {
-      setBetNumbers(cards);
-    },
-  });
+  const { locked, selectionOpen, syncing, toggleCard, clearCards } =
+    useSharedCardSelection({
+      shopId,
+      enabled: status === "authenticated" && !!shopId,
+      pollMs: 400,
+      onRemoteChange: (cards) => {
+        setBetNumbers(cards);
+      },
+    });
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -28,12 +29,17 @@ export default function FloorGuyPage() {
     }
   }, [status]);
 
+  const canSelect = selectionOpen && !locked;
+
   const handleToggle = async (card) => {
-    if (locked) {
-      toast("Game already started — selection locked");
+    if (!canSelect) {
+      toast(
+        locked
+          ? "Game already started — selection locked"
+          : "Wait for cashier to open card selection",
+      );
       return;
     }
-    // Optimistic UI
     setBetNumbers((prev) =>
       prev.includes(card) ? prev.filter((n) => n !== card) : [...prev, card],
     );
@@ -43,15 +49,18 @@ export default function FloorGuyPage() {
       if (data?.selectedCards) setBetNumbers(data.selectedCards);
     } catch (err) {
       toast(err.response?.data?.message || "Failed to select card");
-      // Revert via next poll
     } finally {
       setBusyCard(null);
     }
   };
 
   const handleClear = async () => {
-    if (locked) {
-      toast("Game already started — selection locked");
+    if (!canSelect) {
+      toast(
+        locked
+          ? "Game already started — selection locked"
+          : "Wait for cashier to open card selection",
+      );
       return;
     }
     setBetNumbers([]);
@@ -64,44 +73,65 @@ export default function FloorGuyPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        Loading…
-      </div>
+      <div className="p-8 text-center text-slate-300">Loading…</div>
     );
   }
 
   if (!shopId) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4 p-6 text-center">
-        <h1 className="text-2xl font-bold">Floor Guy</h1>
-        <p>Your account is not assigned to a shop yet. Contact SuperAdmin.</p>
-        <button
-          onClick={() => signOut({ callbackUrl: "/auth/login" })}
-          className="px-4 py-2 bg-red-600 rounded"
-        >
-          Logout
-        </button>
+      <div className="p-8 text-center text-slate-200 space-y-3">
+        <h1 className="text-2xl font-bold text-orange-400">Floor Guy</h1>
+        <p>Your account is not assigned to a shop yet. Ask your cashier.</p>
+      </div>
+    );
+  }
+
+  // Waiting: cashier has not opened Bingo Game selection yet
+  if (!selectionOpen) {
+    return (
+      <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[70vh] text-center gap-4">
+        <div className="w-16 h-16 rounded-full border-4 border-orange-400 border-t-transparent animate-spin" />
+        <h1 className="text-2xl font-bold text-orange-400">Waiting for cashier</h1>
+        <p className="text-slate-300 max-w-md">
+          Card selection is hidden until the cashier opens the Bingo Game and
+          starts selecting players. Stay on this page — the table will appear
+          automatically.
+        </p>
+        <p className="text-sm text-slate-500">
+          Shop: {session?.user?.shopName || "—"}
+          {locked ? " · Game in progress (locked)" : ""}
+        </p>
+      </div>
+    );
+  }
+
+  // Locked after New Game
+  if (locked) {
+    return (
+      <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[70vh] text-center gap-4">
+        <h1 className="text-2xl font-bold text-red-400">Game started</h1>
+        <p className="text-slate-300 max-w-md">
+          Selection is locked. Wait for the cashier to finish and open a new
+          selection round.
+        </p>
+        <p className="text-slate-400 text-sm">
+          Players registered this round: {betNumbers.length}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-3 md:p-6">
+    <div className="p-3 md:p-5">
       <header className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-orange-400">Floor Guy</h1>
+          <h1 className="text-xl font-bold text-orange-400">Select Cards</h1>
           <p className="text-sm text-slate-300">
-            {session?.user?.shopName || "Shop"} · Select player cards only
+            {session?.user?.shopName || "Shop"} · syncs to cashier
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span
-            className={`px-3 py-1 rounded-full ${
-              locked ? "bg-red-600" : "bg-emerald-600"
-            }`}
-          >
-            {locked ? "Locked (game started)" : "Selecting"}
-          </span>
+          <span className="px-3 py-1 rounded-full bg-emerald-600">Selecting</span>
           <span className="text-slate-300">
             Cards 1–{TOTAL_CARDS} · Players:{" "}
             <strong className="text-white">{betNumbers.length}</strong>
@@ -109,23 +139,15 @@ export default function FloorGuyPage() {
           </span>
           <button
             type="button"
-            disabled={locked}
             onClick={handleClear}
-            className="px-3 py-1.5 bg-red-500 rounded disabled:opacity-40"
+            className="px-3 py-1.5 bg-red-500 rounded"
           >
             Clear
-          </button>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/auth/login" })}
-            className="px-3 py-1.5 bg-slate-700 rounded"
-          >
-            Logout
           </button>
         </div>
       </header>
 
-      <div className="cardSelectionArea !min-h-0 !grid-rows-none !h-[calc(100vh-140px)] !block bg-slate-800 rounded-xl p-3">
+      <div className="cardSelectionArea !min-h-0 !grid-rows-none !h-[calc(100vh-180px)] !block bg-slate-800 rounded-xl p-3">
         <div className="cardSelector !col-span-full !row-auto !h-full !flex !flex-col">
           <div className="cardSelectSec !w-full !h-full !max-h-none !overflow-hidden !flex !flex-col">
             <div
@@ -135,39 +157,28 @@ export default function FloorGuyPage() {
                 gap: "4px",
                 flex: 1,
                 minHeight: 0,
-                maxHeight: "calc(100vh - 180px)",
+                maxHeight: "calc(100vh - 220px)",
               }}
             >
-              {Array.from({ length: TOTAL_CARDS }, (_, i) => i + 1).map(
-                (n) => {
-                  const selected = betNumbers.includes(n);
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      disabled={locked || busyCard === n}
-                      onClick={() => handleToggle(n)}
-                      className={selected ? "cardselected" : "cardToselect"}
-                      style={{
-                        opacity: locked ? 0.7 : 1,
-                        cursor: locked ? "not-allowed" : "pointer",
-                        minHeight: "42px",
-                        fontSize: "16px",
-                      }}
-                    >
-                      {n}
-                    </button>
-                  );
-                },
-              )}
+              {Array.from({ length: TOTAL_CARDS }, (_, i) => i + 1).map((n) => {
+                const selected = betNumbers.includes(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    disabled={busyCard === n}
+                    onClick={() => handleToggle(n)}
+                    className={selected ? "cardselected" : "cardToselect"}
+                    style={{ minHeight: "42px", fontSize: "16px" }}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
-
-      <p className="mt-4 text-slate-400 text-sm text-center">
-        Selections sync instantly to the cashier game screen for this shop.
-      </p>
     </div>
   );
 }

@@ -59,11 +59,12 @@ const Bingo = () => {
 
   const {
     locked: selectionLocked,
-    toggleCard: syncToggleCard,
     clearCards: syncClearCards,
     lockSelection,
     unlockSelection,
     setCards: syncSetCards,
+    openSelection,
+    closeSelection,
   } = useSharedCardSelection({
     shopId: session?.user?.shopId,
     enabled: status === "authenticated" && !!session?.user?.shopId,
@@ -71,12 +72,30 @@ const Bingo = () => {
     onRemoteChange: (cards) => {
       applyingRemoteRef.current = true;
       setBetNumbers(cards);
-      // allow localStorage effect to settle then clear flag
       queueMicrotask(() => {
         applyingRemoteRef.current = false;
       });
     },
   });
+
+  // Tell FloorGuy when cashier is on the card-selection screen
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.shopId) return;
+
+    const gameAlreadyActive =
+      typeof window !== "undefined" &&
+      localStorage.getItem("gameScreenActive") === "true";
+
+    if (!gameAlreadyActive) {
+      openSelection().catch((err) =>
+        console.error("open selection failed", err),
+      );
+    }
+
+    return () => {
+      closeSelection().catch(() => {});
+    };
+  }, [status, session?.user?.shopId]);
 
   let maxGen = 75; // Number of random numbers to generate
   const [interval, setIntervalValue] = useState(5); // Interval in milliseconds
