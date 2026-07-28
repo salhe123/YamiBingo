@@ -37,13 +37,7 @@ export async function PATCH(request, { params }) {
 
     const { id } = await params;
     const body = await request.json();
-    const {
-      firstName,
-      lastName,
-      phoneNumber,
-      password,
-      isBlocked,
-    } = body;
+    const { firstName, lastName, phoneNumber, password, isBlocked } = body;
 
     const existing = await getOwnedFloorGuy(id, auth.shopId);
     if (!existing) {
