@@ -84,6 +84,38 @@ const CashierLayout = ({ children }) => {
     }
   }, [status, session]);
 
+  // Same browser cannot stay logged in as Cashier + FloorGuy at once
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (session?.user?.role && session.user.role !== "Cashier") {
+      alert(
+        `This browser is now logged in as ${session.user.role}, not Cashier.\n\n` +
+          "Use Incognito (or another browser) for FloorGuy.\n" +
+          "Then login again here as Cashier.",
+      );
+      window.location.href = "/auth/login";
+    }
+  }, [status, session?.user?.role]);
+
+  const goBingoGame = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/auth/session");
+      const data = await res.json();
+      if (data?.user?.role !== "Cashier") {
+        alert(
+          "Bingo Game needs a Cashier login.\n\n" +
+            "You opened FloorGuy in another tab of the SAME browser — that replaced the Cashier session.\n\n" +
+            "Fix: open FloorGuy in Incognito (or Chrome + Edge), keep Cashier in this window.",
+        );
+        return;
+      }
+      window.location.href = "/Game";
+    } catch {
+      window.location.href = "/Game";
+    }
+  };
+
   if (status === "loading") return <p>Loading...</p>;
   if (status === "unauthenticated") return <p>Access Denied</p>;
 
@@ -162,7 +194,9 @@ const CashierLayout = ({ children }) => {
                 <Link
                   href={menu.link}
                   key={i}
-                  target={menu.name === "Bingo Game" ? "_blank" : "_self"}
+                  onClick={
+                    menu.name === "Bingo Game" ? goBingoGame : undefined
+                  }
                   className={`${
                     menu.margin && "mt-5"
                   } group flex items-center text-2xl gap-3.5 font-medium p-2 hover:bg-gray-800 rounded-md`}

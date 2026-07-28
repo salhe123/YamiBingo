@@ -1,11 +1,34 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
+function homeForRole(role) {
+  switch (role) {
+    case "Cashier":
+      return "/Cashier";
+    case "FloorGuy":
+      return "/FloorGuy";
+    case "Admin":
+      return "/Admin";
+    case "Agent":
+      return "/Agent";
+    case "SuperAdmin":
+    case "Supervisor":
+      return "/SuperAdmin";
+    default:
+      return "/auth/login";
+  }
+}
+
 export async function middleware(req) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   const url = req.nextUrl.clone();
   const role = token?.role;
+
+  // Not logged in → login
+  if (!token) {
+    return NextResponse.redirect(new URL("/auth/login", req.url));
+  }
 
   // Redirect Agent role to /Agent
   if (role === "Agent" && !url.pathname.startsWith("/Agent")) {
@@ -14,7 +37,8 @@ export async function middleware(req) {
 
   // FloorGuy — select-only dashboard
   if (url.pathname.startsWith("/FloorGuy") && role !== "FloorGuy") {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+    // Wrong account in this browser (e.g. Cashier session) — send to their home, not login
+    return NextResponse.redirect(new URL(homeForRole(role), req.url));
   }
 
   if (role === "FloorGuy" && !url.pathname.startsWith("/FloorGuy")) {
@@ -22,7 +46,7 @@ export async function middleware(req) {
   }
 
   if (url.pathname.startsWith("/Admin") && role !== "Admin") {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+    return NextResponse.redirect(new URL(homeForRole(role), req.url));
   }
 
   // Restrict Cashier routes (including the /Game route)
@@ -30,7 +54,7 @@ export async function middleware(req) {
     (url.pathname.startsWith("/Cashier") || url.pathname === "/Game") &&
     role !== "Cashier"
   ) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+    return NextResponse.redirect(new URL(homeForRole(role), req.url));
   }
 
   // Modified SuperAdmin check to allow both SuperAdmin and Supervisor roles
@@ -39,7 +63,7 @@ export async function middleware(req) {
     role !== "SuperAdmin" &&
     role !== "Supervisor"
   ) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+    return NextResponse.redirect(new URL(homeForRole(role), req.url));
   }
 
   return NextResponse.next();

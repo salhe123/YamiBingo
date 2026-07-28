@@ -78,24 +78,34 @@ const Bingo = () => {
     },
   });
 
-  // Tell FloorGuy when cashier is on the card-selection screen
+  // Keep FloorGuy selection open while cashier is on this page (not mid-call).
+  // Re-open on an interval so Strict Mode / cleanup races cannot leave it closed.
+  const selectionSessionRef = useRef(0);
   useEffect(() => {
     if (status !== "authenticated" || !session?.user?.shopId) return;
 
-    const gameAlreadyActive =
-      typeof window !== "undefined" &&
-      localStorage.getItem("gameScreenActive") === "true";
+    const sessionGen = ++selectionSessionRef.current;
 
-    if (!gameAlreadyActive) {
+    const keepOpen = () => {
+      const gameAlreadyActive =
+        localStorage.getItem("gameScreenActive") === "true";
+      if (gameAlreadyActive) return;
       openSelection().catch((err) =>
         console.error("open selection failed", err),
       );
-    }
+    };
+
+    keepOpen();
+    const keepAliveId = window.setInterval(keepOpen, 1500);
 
     return () => {
-      closeSelection().catch(() => {});
+      window.clearInterval(keepAliveId);
+      window.setTimeout(() => {
+        if (selectionSessionRef.current !== sessionGen) return;
+        closeSelection().catch(() => {});
+      }, 400);
     };
-  }, [status, session?.user?.shopId]);
+  }, [status, session?.user?.shopId, openSelection, closeSelection]);
 
   let maxGen = 75; // Number of random numbers to generate
   const [interval, setIntervalValue] = useState(5); // Interval in milliseconds

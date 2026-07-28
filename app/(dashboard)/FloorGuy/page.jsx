@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { useSharedCardSelection } from "@/lib/useSharedCardSelection";
@@ -22,12 +22,6 @@ export default function FloorGuyPage() {
         setBetNumbers(cards);
       },
     });
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      window.location.href = "/auth/login";
-    }
-  }, [status]);
 
   const canSelect = selectionOpen && !locked;
 
@@ -86,26 +80,7 @@ export default function FloorGuyPage() {
     );
   }
 
-  // Waiting: cashier has not opened Bingo Game selection yet
-  if (!selectionOpen) {
-    return (
-      <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[70vh] text-center gap-4">
-        <div className="w-16 h-16 rounded-full border-4 border-orange-400 border-t-transparent animate-spin" />
-        <h1 className="text-2xl font-bold text-orange-400">Waiting for cashier</h1>
-        <p className="text-slate-300 max-w-md">
-          Card selection is hidden until the cashier opens the Bingo Game and
-          starts selecting players. Stay on this page — the table will appear
-          automatically.
-        </p>
-        <p className="text-sm text-slate-500">
-          Shop: {session?.user?.shopName || "—"}
-          {locked ? " · Game in progress (locked)" : ""}
-        </p>
-      </div>
-    );
-  }
-
-  // Locked after New Game
+  // Locked after New Game (checked before waiting — lock also closes selectionOpen)
   if (locked) {
     return (
       <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[70vh] text-center gap-4">
@@ -116,6 +91,28 @@ export default function FloorGuyPage() {
         </p>
         <p className="text-slate-400 text-sm">
           Players registered this round: {betNumbers.length}
+        </p>
+      </div>
+    );
+  }
+
+  // Waiting: cashier has not opened Bingo Game selection yet
+  if (!selectionOpen) {
+    return (
+      <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[70vh] text-center gap-4">
+        <div className="w-16 h-16 rounded-full border-4 border-orange-400 border-t-transparent animate-spin" />
+        <h1 className="text-2xl font-bold text-orange-400">Waiting for cashier</h1>
+        <p className="text-slate-300 max-w-md">
+          This account is FloorGuy — you only select cards here.
+          On another browser (or Incognito), login as{" "}
+          <span className="text-orange-300 font-semibold">Cashier</span>, open{" "}
+          <span className="text-orange-300 font-semibold">Bingo Game</span>, and
+          stay on <span className="text-orange-300">/Game</span>. Then this
+          table appears automatically.
+        </p>
+        <p className="text-sm text-slate-500">
+          Shop: {session?.user?.shopName || "—"} · You:{" "}
+          {session?.user?.email}
         </p>
       </div>
     );
